@@ -1,0 +1,79 @@
+import { Hono } from "hono";
+import { z } from "zod";
+import type { AppEnv } from "../../types/app.js";
+import { authGuard } from "../../middleware/auth-guard.js";
+import * as service from "./cart.service.js";
+
+const productIdSchema = z.string().uuid();
+
+const addSchema = z.object({
+  productId: z.string().uuid(),
+  qty: z.number().int().positive().default(1),
+});
+
+const patchSchema = z.object({
+  qty: z.number().int().min(1),
+});
+
+export const cartRoutes = new Hono<AppEnv>();
+
+cartRoutes.use("*", authGuard);
+
+cartRoutes.get("/", async (c) => {
+  const cart = await service.getCart(c.get("userId"));
+  return c.json({ cart }, 200);
+});
+
+cartRoutes.post("/", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = addSchema.safeParse(body);
+  if (!parsed.success) return c.json({ error: "invalid" }, 400);
+
+  const result = await service.addItem(
+    c.get("userId"),
+    parsed.data.productId,
+    parsed.data.qty,
+  );
+  if (!result.ok) {
+    const status = result.error === "not-found" ? 404 : 400;
+    return c.json({ error: result.error }, status);
+  }
+
+  const cart = await service.getCart(c.get("userId"));
+  return c.json({ cart }, 200);
+});
+
+cartRoutes.patch("/:productId", async (c) => {
+  const id = productIdSchema.safeParse(c.req.param("productId"));
+  if (!id.success) return c.json({ error: "not-found" }, 404);
+
+  const body = await c.req.json().catch(() => null);
+  const parsed = patchSchema.safeParse(body);
+  if (!parsed.success) return c.json({ error: "invalid" }, 400);
+
+  const result = await service.updateItemQty(
+    c.get("userId"),
+    id.data,
+    parsed.data.qty,
+  );
+  if (!result.ok) {
+    const status = result.error === "not-found" ? 404 : 400;
+    return c.json({ error: result.error }, status);
+  }
+
+  const cart = await service.getCart(c.get("userId"));
+  return c.json({ cart }, 200);
+});
+
+cartRoutes.delete("/:productId", async (c) => {
+  const id = productIdSchema.safeParse(c.req.param("productId"));
+  if (!id.success) return c.json({ error: "not-found" }, 404);
+
+  await service.removeItem(c.get("userId"), id.data);
+  return c.body(null, 204);
+});
+
+cartRoutes.delete("/", async (c) => {
+  await service.clearCart(c.get("userId"));
+  return c.body(null, 204);
+});
