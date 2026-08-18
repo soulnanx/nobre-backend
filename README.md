@@ -25,7 +25,7 @@ Stack: **Node.js 22 + TypeScript 5 (strict) + Hono + PostgreSQL 16 + Drizzle ORM
   `order_items` (snapshot nome/preço), limpa o carrinho. Estoque insuficiente →
   rollback total + `{ error: "stock" }`. Carrinho vazio → `{ error: "empty-cart" }`.
 
-Formato de erro padrão: `{ "error": "<código>espaço" }` com status HTTP correto.
+Formato de erro padrão: `{ "error": "<código>" }` com status HTTP correto.
 Saída de `product.priceCents`/`order.totalCents`/`unitPriceCents` em centavos (int).
 
 ## 2. Arquitetura
