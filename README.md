@@ -19,7 +19,14 @@ Stack: **Node.js 22 + TypeScript 5 (strict) + Hono + PostgreSQL 16 + Drizzle ORM
   **Cache in-memory com TTL de 60s** no catálogo.
 - **Cart** — `GET/POST /cart`, `PATCH/(DELETE) /cart/:productId`, `DELETE /cart`.
   Adicionar item já existente incrementa a quantidade; nunca excede `stockQty`
-  (erro `stock`).
+  (erro `stock`). Suporta **cupom** (`POST/DELETE /cart/coupon`,
+  `400 {error:"invalid-coupon"}`) e **endereço de entrega**
+  (`PUT /cart/shipping-address`, `400 {error:"validation"}`). `GET /cart`
+  retorna `subtotalCents`, `discountCents`, `shippingCents`, `totalCents`,
+  `coupon` e `shippingAddress`. Cleanup lazy de itens > `CART_TTL_DAYS`
+  (default 7) + script `db:clean-carts`.
+- **Shipping** — `GET /shipping/quote?cep=...&subtotalCents=...` retorna
+  `{ shippingCents }` (stub via tabela `shipping_rules` por prefixo de CEP).
 - **Orders** — `POST /orders`, `GET /orders`, `GET /orders/:id`. O `POST` é
   **transacional**: valida estoque, decrementa `stockQty`, cria `order` +
   `order_items` (snapshot nome/preço), limpa o carrinho. Estoque insuficiente →
@@ -42,7 +49,9 @@ be-loja/
 │   │   │   ├── auth/       # auth.repo → auth.service → auth.route + password/session
 │   │   │   ├── products/   # products.repo → products.service (cache TTL) → route
 │   │   │   ├── cart/       # cart.repo → cart.service → cart.route
-│   │   │   └── orders/     # orders.repo (checkout transacional) → service → route
+│   │   │   ├── coupons/   # coupons.repo → coupons.service (validação)
+│   │   │   ├── shipping/  # shipping.repo → shipping.service (stub) → route
+│   │   │   └── orders/    # orders.repo (checkout transacional) → service → route
 │   │   ├── types/          # AppEnv + re-exports dos DTOs compartilhados
 │   │   └── index.ts        # bootstrap (Hono + middlewares + rotas)
 │   ├── Dockerfile
