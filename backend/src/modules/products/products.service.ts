@@ -50,3 +50,13 @@ export async function getProduct(id: string): Promise<ProductDTO | null> {
   byIdCache.set(id, { value: dto, expiresAt: Date.now() + CACHE_TTL_MS });
   return dto;
 }
+
+export type CreateProductInput = repo.CreateProductInput;
+
+export async function createProduct(
+  input: CreateProductInput,
+): Promise<ProductDTO> {
+  const product = await repo.create(input);
+  clearCache();
+  return toDTO(product);
+}

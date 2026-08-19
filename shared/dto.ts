@@ -1,6 +1,7 @@
 export type PublicUser = {
   id: string;
   username: string;
+  role: "admin" | "customer";
   createdAt: string;
 };
 

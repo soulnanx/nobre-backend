@@ -114,8 +114,96 @@
 ## Evidência (preencher na T-07)
 
 ```text
-<!-- curl outputs aqui -->
+=== Ambiente ===
+- Postgres: porta 5433, schema migrado (0001_superb_miek.sql)
+- API: http://localhost:3001 (make dev)
+
+=== 1. register (customer) → user.role = "customer" ===
+$ curl -s -c /tmp/cookies-user.txt -X POST http://localhost:3001/auth/register \
+    -H "Content-Type: application/json" \
+    -d '{"username":"ivan","password":"segredo123"}'
+{"user":{"id":"c2cbf1b8-f6c1-4396-b327-dacdc26354e6","username":"ivan","role":"customer","createdAt":"2026-08-19T17:58:09.514Z"}}
+
+=== 2. GET /auth/me (customer) ===
+$ curl -s -b /tmp/cookies-user.txt http://localhost:3001/auth/me
+{"user":{"id":"c2cbf1b8-f6c1-4396-b327-dacdc26354e6","username":"ivan","role":"customer","createdAt":"2026-08-19T17:58:09.514Z"}}
+
+=== 3. db:promote-admin ivan ===
+$ npm run db:promote-admin -- ivan
+usuário promovido: {"id":"c2cbf1b8-f6c1-4396-b327-dacdc26354e6","username":"ivan","role":"admin"}
+
+=== 4. GET /auth/me after promote (admin) ===
+$ curl -s -b /tmp/cookies-user.txt http://localhost:3001/auth/me
+{"user":{"id":"c2cbf1b8-f6c1-4396-b327-dacdc26354e6","username":"ivan","role":"admin","createdAt":"2026-08-19T17:58:09.514Z"}}
+
+=== 5. POST /products (admin) → 201 ===
+$ curl -s -b /tmp/cookies-user.txt -X POST http://localhost:3001/products \
+    -H "Content-Type: application/json" \
+    -d '{"name":"Camiseta Polo","description":"Camiseta polo piqué","priceCents":9990,"color":"from-emerald-500/30 to-teal-600/30","stockQty":5}'
+{"product":{"id":"365a7554-e277-4397-b076-b810bb4cd08a","name":"Camiseta Polo","description":"Camiseta polo piqué","priceCents":9990,"color":"from-emerald-500/30 to-teal-600/30","stockQty":5,"active":true,"createdAt":"2026-08-19T17:58:26.160Z"}}
+HTTP 201
+
+=== 6. GET /products (cache invalidado: novo produto aparece) ===
+$ curl -s http://localhost:3001/products
+{"products":[
+  "Moletom Oversized","Boné Clássico","Mochila Compacta","Relógio Minimal",
+  "Camiseta Básica","Tênis Urban","Camiseta Polo"
+]}
+Total: 7 (6 seed + 1 criado)
+
+=== 7. register cliente (não-admin) ===
+$ curl -s -c /tmp/cookies-customer.txt -X POST http://localhost:3001/auth/register \
+    -H "Content-Type: application/json" \
+    -d '{"username":"joao","password":"segredo123"}'
+{"user":{"id":"8838920a-1460-4e3c-aa3e-137a736e21ef","username":"joao","role":"customer","createdAt":"2026-08-19T17:58:26.265Z"}}
+
+=== 8. POST /products (não-admin) → 403 forbidden ===
+$ curl -s -b /tmp/cookies-customer.txt -X POST http://localhost:3001/products \
+    -H "Content-Type: application/json" \
+    -d '{"name":"Outro","description":"x","priceCents":1000,"color":"x","stockQty":0}'
+{"error":"forbidden"}
+HTTP 403
+
+=== 9. POST /products (anônimo) → 401 unauthorized ===
+$ curl -s -X POST http://localhost:3001/products \
+    -H "Content-Type: application/json" \
+    -d '{"name":"Outro","description":"x","priceCents":1000,"color":"x","stockQty":0}'
+{"error":"unauthorized"}
+HTTP 401
+
+=== 10. POST /products (admin, corpo inválido) → 400 validation ===
+$ curl -s -b /tmp/cookies-user.txt -X POST http://localhost:3001/products \
+    -H "Content-Type: application/json" \
+    -d '{"name":"","description":"x","priceCents":-1,"color":"x","stockQty":0}'
+{"error":"validation"}
+HTTP 400
+
+=== make lint ===
+$ make lint
+> eslint src --max-warnings 0
+(sem erros)
+
+=== make build ===
+$ make build
+> tsc
+(sem erros)
+
+=== make test ===
+$ make test
+ Test Files  4 passed (4)
+      Tests  25 passed (25)
+   Duration  3.39s
 ```
+
+## Status final
+
+- **T-01** ✅ Schema: `role` em `users` + migração `0001_superb_miek.sql`
+- **T-02** ✅ DTO: `role` em `PublicUser` + `toPublicUser`
+- **T-03** ✅ Middleware `adminGuard`
+- **T-04** ✅ `POST /products` (route + service + repo) com cache invalidado
+- **T-05** ✅ Script `db:promote-admin` + npm script
+- **T-06** ✅ 5 cenários de integração verdes (admin, não-admin, anônimo, validação, role)
+- **T-07** ✅ lint + build + test verdes; evidência curl registrada
 
 ## Definition of Done da feature
 

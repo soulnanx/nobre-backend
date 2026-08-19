@@ -30,3 +30,20 @@ export async function findById(id: string): Promise<Product | undefined> {
     .limit(1);
   return product;
 }
+
+export type CreateProductInput = {
+  name: string;
+  description: string;
+  priceCents: number;
+  color: string;
+  stockQty: number;
+};
+
+export async function create(input: CreateProductInput): Promise<Product> {
+  const [product] = await db
+    .insert(products)
+    .values({ ...input, active: true })
+    .returning();
+  if (!product) throw new Error("createProduct failed");
+  return product;
+}

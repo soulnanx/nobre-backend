@@ -103,6 +103,101 @@ describe("API integration", () => {
       expect(res.status).toBe(404);
       await expect(res.json()).resolves.toEqual({ error: "not-found" });
     });
+
+    it("includes role in public user", async () => {
+      const { res, cookie } = await register("role-check");
+      expect(res.status).toBe(201);
+      const body = await res.json();
+      expect(body.user.role).toBe("customer");
+
+      const me = await app.request("/auth/me", { headers: { cookie } });
+      const meBody = await me.json();
+      expect(meBody.user.role).toBe("customer");
+    });
+  });
+
+  describe("admin POST /products", () => {
+    async function promoteToAdmin(username: string): Promise<void> {
+      const { db } = await import("../src/db/client.js");
+      const { sql } = await import("drizzle-orm");
+      await db.execute(
+        sql`UPDATE users SET role = 'admin' WHERE username = ${username}`,
+      );
+    }
+
+    const validPayload = {
+      name: "Camiseta Polo",
+      description: "Camiseta polo de algodão piqué.",
+      priceCents: 9990,
+      color: "from-emerald-500/30 to-teal-600/30",
+      stockQty: 5,
+    };
+
+    it("admin creates product and invalidates catalog cache", async () => {
+      const { cookie } = await register("admin1");
+      await promoteToAdmin("admin1");
+
+      const before = await app.request("/products");
+      const beforeBody = await before.json();
+      expect(beforeBody.products).toHaveLength(2);
+
+      const create = await app.request("/products", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify(validPayload),
+      });
+      expect(create.status).toBe(201);
+      const created = await create.json();
+      expect(created.product.name).toBe(validPayload.name);
+      expect(created.product.active).toBe(true);
+      expect(created.product.priceCents).toBe(validPayload.priceCents);
+
+      const after = await app.request("/products");
+      const afterBody = await after.json();
+      expect(afterBody.products).toHaveLength(3);
+      expect(
+        afterBody.products.some((p: { id: string }) => p.id === created.product.id),
+      ).toBe(true);
+    });
+
+    it("non-admin returns 403 forbidden", async () => {
+      const { cookie } = await register("customer1");
+
+      const res = await app.request("/products", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify(validPayload),
+      });
+      expect(res.status).toBe(403);
+      await expect(res.json()).resolves.toEqual({ error: "forbidden" });
+
+      const list = await app.request("/products");
+      const listBody = await list.json();
+      expect(listBody.products).toHaveLength(2);
+    });
+
+    it("anonymous returns 401 unauthorized", async () => {
+      const res = await app.request("/products", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(validPayload),
+      });
+      expect(res.status).toBe(401);
+      await expect(res.json()).resolves.toEqual({ error: "unauthorized" });
+    });
+
+    it("admin with invalid body returns 400 validation", async () => {
+      const { cookie } = await register("admin2");
+      await promoteToAdmin("admin2");
+
+      const res = await app.request("/products", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({ ...validPayload, priceCents: -100 }),
+      });
+      expect(res.status).toBe(400);
+      await expect(res.json()).resolves.toEqual({ error: "validation" });
+    });
   });
 
   describe("cart", () => {
