@@ -79,9 +79,9 @@
 - **Ações:**
   1. Em `backend/src/modules/orders/orders.service.ts`:
      - `createOrderPreview(userId)`:
-       - Carrega cart (itens + cupom + endereço).
-       - Se vazio → `{ error: "empty-cart" }`.
-       - Calcula totais (reusa `cartService.computeTotals` + `shippingService.quote`).
+       - Chama `cartService.getCart(userId)` (já retorna totais + cupom + endereço).
+       - Se `items.length === 0` → `{ error: "empty-cart" }`.
+       - Mapeia para `OrderSummary` (sem `statusHistory`/`paymentStatus`).
        - Retorna `OrderSummary`.
 - **DoD:** retorna totais corretos com cupom e frete.
 

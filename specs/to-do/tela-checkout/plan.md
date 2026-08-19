@@ -17,7 +17,7 @@
 | AD-01 | `orders` ganha `payment_status text NOT NULL DEFAULT 'pending'` e `payment_url text NULL`. | RF-09; status separam lifecycle de pedido e pagamento. |
 | AD-02 | Nova tabela `order_status_events` (`id`, `order_id` FK, `status` text, `created_at` default now()). | RF-11; audit trail. |
 | AD-03 | `POST /orders` continua criando pedido, mas agora com `status="pending"` (DD-01). | RF-03. |
-| AD-04 | `POST /orders/preview` (RF-01): reusa `cartService.computeTotals` para somar; lê `cart_items` + `cart_user_state` (frete via `shippingService.quote`). | Sem inserir pedido. |
+| AD-04 | `POST /orders/preview` (RF-01): reusa `cartService.getCart` (que já retorna `subtotalCents`, `discountCents`, `shippingCents`, `totalCents`, `coupon`, `shippingAddress`); frete via `shippingService.quote`. | Sem inserir pedido; reusa o que `carrinho-de-compras` já consolidou. |
 | AD-05 | `POST /orders/:id/confirm` (RF-05): valida ownership, valida status=`pending`, `UPDATE orders SET status='created'`, gera `paymentURL` placeholder, insere evento `confirmed`. | Transição explícita + audit. |
 | AD-06 | `paymentUrl` placeholder: `https://pay.example.com/orders/{id}` (constante configurável via env `PAYMENT_PLACEHOLDER_BASE_URL`). | RF-10; substitui quando integrarmos. |
 | AD-07 | `GET /orders/:id` retorna `order` + `statusHistory` (lista de eventos ordenada por `created_at` ASC). | RF-12. |
@@ -108,9 +108,9 @@ export type OrderSummary = {
 
 ## Fluxos
 
-**Preview:** `POST /orders/preview` → lê cart do user (itens + cupom + endereço) →
-calcula totais (reusa `cartService.computeTotals` + `shippingService.quote`) →
-retorna `OrderSummary` sem inserir nada.
+**Preview:** `POST /orders/preview` → chama `cartService.getCart(userId)` (que
+já agrega itens + cupom + endereço + frete) → se vazio → `400 empty-cart` →
+mapeia para `OrderSummary` (sem `statusHistory`/`paymentStatus`) → retorna.
 
 **Criar pedido (pending):** `POST /orders` → valida cart (não-vazio, estoque) →
 transação: cria `order` com `status="pending"`, snapshot itens, limpa cart,
