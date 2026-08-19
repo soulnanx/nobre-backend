@@ -162,7 +162,70 @@
 ## Evidência (preencher na T-11)
 
 ```text
-<!-- curl outputs aqui -->
+=== Ambiente ===
+- Postgres: porta 5433, schema migrado (0002_yielding_kid_colt.sql).
+- API: http://localhost:3001 (make dev).
+- Cupons seed: BEMVINDO10 (10% off), FRETE0 (R$15 off, mín R$200), EXPIRADO (50% off, expirado).
+- Shipping rules seed: prefixo "01" → 1500, prefixo "02" → 1800.
+
+=== 1. register (cliente) ===
+$ curl -s -c /tmp/cart-cookie.txt -X POST http://localhost:3001/auth/register \
+    -H "Content-Type: application/json" \
+    -d '{"username":"clara","password":"segredo123"}'
+{"user":{"id":"d3f7d393-17b2-4fe0-a1ac-6884a8d6c01d","username":"clara","role":"customer","createdAt":"2026-08-19T20:17:00.269Z"}}
+
+=== 2. POST /cart (qty=2, Moletom R$189.90) ===
+$ curl -s -b /tmp/cart-cookie.txt -X POST http://localhost:3001/cart \
+    -H "Content-Type: application/json" \
+    -d '{"productId":"4fe23b09-b0cc-4762-93b4-59153c00ed98","qty":2}'
+{"cart":{"items":[...],"subtotalCents":37980,"discountCents":0,"shippingCents":0,"totalCents":37980,"coupon":null,"shippingAddress":null}}
+
+=== 3. GET /cart (sem cupom, sem endereço) ===
+$ curl -s -b /tmp/cart-cookie.txt http://localhost:3001/cart
+subtotalCents=37980, discountCents=0, shippingCents=0, totalCents=37980
+coupon=null, shippingAddress=null
+
+=== 4. POST /cart/coupon (BEMVINDO10, 10% off) → 200 ===
+$ curl -s -b /tmp/cart-cookie.txt -X POST http://localhost:3001/cart/coupon \
+    -H "Content-Type: application/json" \
+    -d '{"code":"BEMVINDO10"}'
+{"cart":{...,"subtotalCents":37980,"discountCents":3798,"shippingCents":0,"totalCents":34182,"coupon":{"code":"BEMVINDO10","discountType":"percent","discountValue":10,"expiresAt":null},"shippingAddress":null}}
+
+=== 5. PUT /cart/shipping-address (CEP 01310-100) → 200 ===
+$ curl -s -b /tmp/cart-cookie.txt -X PUT http://localhost:3001/cart/shipping-address \
+    -H "Content-Type: application/json" \
+    -d '{"cep":"01310-100","street":"Av. Paulista","number":"1000","city":"São Paulo","state":"SP"}'
+{"cart":{...,"subtotalCents":37980,"discountCents":3798,"shippingCents":1500,"totalCents":35682,"coupon":{"code":"BEMVINDO10",...},"shippingAddress":{"id":"3dad1a8f-...","cep":"01310-100",...}}}
+
+=== 6. GET /shipping/quote?cep=01310-100&subtotalCents=15980 → 1500 ===
+$ curl -s -b /tmp/cart-cookie.txt "http://localhost:3001/shipping/quote?cep=01310-100&subtotalCents=15980"
+{"shippingCents":1500}
+
+=== 7. POST /cart/coupon (cupom inexistente) → 400 invalid-coupon ===
+$ curl -s -b /tmp/cart-cookie.txt -X POST http://localhost:3001/cart/coupon \
+    -H "Content-Type: application/json" \
+    -d '{"code":"NAOEXISTE"}'
+{"error":"invalid-coupon"}
+HTTP 400
+
+=== 8. DELETE /cart/coupon → 200 (discountCents=0, coupon=null) ===
+$ curl -s -b /tmp/cart-cookie.txt -X DELETE http://localhost:3001/cart/coupon
+{"cart":{...,"discountCents":0,"shippingCents":1500,"totalCents":39480,"coupon":null,"shippingAddress":{...}}}
+
+=== make lint ===
+$ make lint
+> eslint src --max-warnings 0
+(sem erros)
+
+=== make build ===
+$ make build
+> tsc
+(sem erros)
+
+=== make test ===
+$ make test
+ Test Files  4 passed (4)
+      Tests  34 passed (34)
 ```
 
 ## Definition of Done da feature

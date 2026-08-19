@@ -9,6 +9,7 @@ import { authRoutes } from "../src/modules/auth/auth.route.js";
 import { productsRoutes } from "../src/modules/products/products.route.js";
 import { cartRoutes } from "../src/modules/cart/cart.route.js";
 import { ordersRoutes } from "../src/modules/orders/orders.route.js";
+import { shippingRoutes } from "../src/modules/shipping/shipping.route.js";
 import { corsOrigins } from "../src/config/index.js";
 
 export function buildApp(): Hono<AppEnv> {
@@ -22,6 +23,7 @@ export function buildApp(): Hono<AppEnv> {
   app.route("/products", productsRoutes);
   app.route("/cart", cartRoutes);
   app.route("/orders", ordersRoutes);
+  app.route("/shipping", shippingRoutes);
   return app;
 }
 
@@ -37,8 +39,30 @@ export async function resetDb() {
   const { clearCache } = await import("../src/modules/products/products.service.js");
   clearCache();
   await db.execute(
-    "TRUNCATE TABLE order_items, orders, cart_items, sessions, products, users RESTART IDENTITY CASCADE",
+    "TRUNCATE TABLE order_items, orders, cart_items, cart_user_state, addresses, coupons, shipping_rules, order_items, orders, sessions, products, users RESTART IDENTITY CASCADE",
   );
+}
+
+export async function seedCoupons() {
+  const { db } = await import("../src/db/client.js");
+  const { coupons, shippingRules } = await import("../src/db/schema.js");
+  await db.insert(coupons).values([
+    {
+      code: "BEMVINDO10",
+      discountType: "percent",
+      discountValue: 10,
+    },
+    {
+      code: "EXPIRADO",
+      discountType: "percent",
+      discountValue: 50,
+      expiresAt: new Date(Date.now() - 1000 * 60 * 60),
+    },
+  ]);
+  await db.insert(shippingRules).values([
+    { cepPrefix: "01", priceCents: 1500 },
+    { cepPrefix: "02", priceCents: 1800 },
+  ]);
 }
 
 export async function seedProducts() {

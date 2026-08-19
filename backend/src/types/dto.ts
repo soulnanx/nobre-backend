@@ -1,5 +1,7 @@
 export type {
   PublicUser,
+  PublicCoupon,
+  PublicAddress,
   Product,
   Cart,
   CartItem,

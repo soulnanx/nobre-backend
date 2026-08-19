@@ -16,6 +16,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx --env-file=.env src/db/seed.ts",
+    "db:seed-coupons": "tsx --env-file=.env src/db/seed-coupons.ts",
+    "db:clean-carts": "tsx --env-file=.env src/db/clean-carts.ts",
     "db:promote-admin": "tsx --env-file=.env src/db/promote-admin.ts"
   },
   "dependencies": {

@@ -5,6 +5,23 @@ export type PublicUser = {
   createdAt: string;
 };
 
+export type PublicCoupon = {
+  code: string;
+  discountType: "percent" | "fixed";
+  discountValue: number;
+  expiresAt: string | null;
+};
+
+export type PublicAddress = {
+  id: string;
+  cep: string;
+  street: string;
+  number: string;
+  city: string;
+  state: string;
+  complement: string | null;
+};
+
 export type Product = {
   id: string;
   name: string;
@@ -26,7 +43,12 @@ export type CartItem = {
 
 export type Cart = {
   items: CartItem[];
+  subtotalCents: number;
+  discountCents: number;
+  shippingCents: number;
   totalCents: number;
+  coupon: PublicCoupon | null;
+  shippingAddress: PublicAddress | null;
 };
 
 export type OrderItem = {

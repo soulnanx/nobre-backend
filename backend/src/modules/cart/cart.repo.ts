@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "../../db/client.js";
 import { cartItems, products } from "../../db/schema.js";
 import type { CartItem, Product } from "../../db/schema.js";
@@ -72,4 +72,11 @@ export async function removeItem(
 
 export async function clearForUser(userId: string): Promise<void> {
   await db.delete(cartItems).where(eq(cartItems.userId, userId));
+}
+
+export async function cleanupExpiredItems(ttlDays: number): Promise<number> {
+  const result = await db.execute(
+    sql`DELETE FROM cart_items WHERE added_at < NOW() - INTERVAL '${sql.raw(String(ttlDays))} days'`,
+  );
+  return (result as unknown as { rowCount?: number }).rowCount ?? 0;
 }

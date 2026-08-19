@@ -66,12 +66,69 @@ export const cartItems = pgTable(
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
     qty: integer("qty").notNull(),
+    addedAt: timestamp("added_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [uniqueIndex("cart_items_user_product_unique").on(table.userId, table.productId)],
 );
+
+export const coupons = pgTable(
+  "coupons",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    code: text("code").notNull(),
+    discountType: text("discount_type").notNull(),
+    discountValue: integer("discount_value").notNull(),
+    minSubtotalCents: integer("min_subtotal_cents"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [uniqueIndex("coupons_code_unique").on(table.code)],
+);
+
+export const addresses = pgTable("addresses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  cep: text("cep").notNull(),
+  street: text("street").notNull(),
+  number: text("number").notNull(),
+  city: text("city").notNull(),
+  state: text("state").notNull(),
+  complement: text("complement"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const cartUserState = pgTable("cart_user_state", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  couponId: uuid("coupon_id").references(() => coupons.id, {
+    onDelete: "set null",
+  }),
+  shippingAddressId: uuid("shipping_address_id").references(() => addresses.id, {
+    onDelete: "set null",
+  }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const shippingRules = pgTable("shipping_rules", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  cepPrefix: text("cep_prefix").notNull(),
+  priceCents: integer("price_cents").notNull(),
+});
 
 export const orders = pgTable(
   "orders",
@@ -106,5 +163,9 @@ export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type Product = typeof products.$inferSelect;
 export type CartItem = typeof cartItems.$inferSelect;
+export type Coupon = typeof coupons.$inferSelect;
+export type Address = typeof addresses.$inferSelect;
+export type CartUserState = typeof cartUserState.$inferSelect;
+export type ShippingRule = typeof shippingRules.$inferSelect;
 export type Order = typeof orders.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;

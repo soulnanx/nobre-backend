@@ -11,6 +11,7 @@ import { authRoutes } from "./modules/auth/auth.route.js";
 import { productsRoutes } from "./modules/products/products.route.js";
 import { cartRoutes } from "./modules/cart/cart.route.js";
 import { ordersRoutes } from "./modules/orders/orders.route.js";
+import { shippingRoutes } from "./modules/shipping/shipping.route.js";
 
 const app = new Hono<AppEnv>();
 
@@ -26,6 +27,7 @@ app.route("/auth", authRoutes);
 app.route("/products", productsRoutes);
 app.route("/cart", cartRoutes);
 app.route("/orders", ordersRoutes);
+app.route("/shipping", shippingRoutes);
 
 const server = serve(
   { fetch: app.fetch, port: env.PORT },

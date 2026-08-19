@@ -8,6 +8,7 @@ const envSchema = z.object({
   RATE_LIMIT_REGISTER: z.coerce.number().int().positive().default(5),
   RATE_LIMIT_LOGIN: z.coerce.number().int().positive().default(10),
   CORS_ORIGINS: z.string().default("http://localhost:3000"),
+  CART_TTL_DAYS: z.coerce.number().int().positive().default(7),
 });
 
 const parsed = envSchema.safeParse(process.env);

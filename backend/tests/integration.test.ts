@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { buildApp, resetDb, seedProducts, uniqueIp } from "./helpers.js";
+import { buildApp, resetDb, seedCoupons, seedProducts, uniqueIp } from "./helpers.js";
 
 describe("API integration", () => {
   const app = buildApp();
@@ -7,11 +7,13 @@ describe("API integration", () => {
   beforeAll(async () => {
     await resetDb();
     await seedProducts();
+    await seedCoupons();
   });
 
   afterEach(async () => {
     await resetDb();
     await seedProducts();
+    await seedCoupons();
   });
 
   async function register(username: string, password = "segredo123") {
@@ -329,6 +331,164 @@ describe("API integration", () => {
 
       const cartAfter = await app.request("/cart", { headers: { cookie } });
       expect((await cartAfter.json()).cart.items).toHaveLength(1);
+    });
+  });
+
+  describe("cart extras", () => {
+    async function addItem(cookie: string, productId: string, qty = 1) {
+      return app.request("/cart", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({ productId, qty }),
+      });
+    }
+
+    it("cart returns subtotalCents, discountCents, shippingCents, totalCents", async () => {
+      const { cookie } = await register("totals-user");
+      const { products } = await (await app.request("/products")).json();
+      await addItem(cookie, products[0].id, 1);
+
+      const res = await app.request("/cart", { headers: { cookie } });
+      const body = await res.json();
+      expect(body.cart.subtotalCents).toBe(7990);
+      expect(body.cart.discountCents).toBe(0);
+      expect(body.cart.shippingCents).toBe(0);
+      expect(body.cart.totalCents).toBe(7990);
+      expect(body.cart.coupon).toBeNull();
+      expect(body.cart.shippingAddress).toBeNull();
+    });
+
+    it("applies valid coupon and reflects discount", async () => {
+      const { cookie } = await register("coupon-user");
+      const { products } = await (await app.request("/products")).json();
+      await addItem(cookie, products[0].id, 2);
+
+      const apply = await app.request("/cart/coupon", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({ code: "BEMVINDO10" }),
+      });
+      expect(apply.status).toBe(200);
+      const body = await apply.json();
+      expect(body.cart.subtotalCents).toBe(7990 * 2);
+      expect(body.cart.discountCents).toBe(Math.floor((7990 * 2 * 10) / 100));
+      expect(body.cart.coupon?.code).toBe("BEMVINDO10");
+    });
+
+    it("rejects unknown coupon with invalid-coupon", async () => {
+      const { cookie } = await register("coupon-bad");
+      const { products } = await (await app.request("/products")).json();
+      await addItem(cookie, products[0].id, 1);
+
+      const res = await app.request("/cart/coupon", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({ code: "NAOEXISTE" }),
+      });
+      expect(res.status).toBe(400);
+      await expect(res.json()).resolves.toEqual({ error: "invalid-coupon" });
+    });
+
+    it("rejects expired coupon with invalid-coupon", async () => {
+      const { cookie } = await register("coupon-exp");
+      const { products } = await (await app.request("/products")).json();
+      await addItem(cookie, products[0].id, 1);
+
+      const res = await app.request("/cart/coupon", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({ code: "EXPIRADO" }),
+      });
+      expect(res.status).toBe(400);
+      await expect(res.json()).resolves.toEqual({ error: "invalid-coupon" });
+    });
+
+    it("removes applied coupon", async () => {
+      const { cookie } = await register("coupon-rm");
+      const { products } = await (await app.request("/products")).json();
+      await addItem(cookie, products[0].id, 1);
+
+      await app.request("/cart/coupon", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({ code: "BEMVINDO10" }),
+      });
+
+      const remove = await app.request("/cart/coupon", {
+        method: "DELETE",
+        headers: { cookie },
+      });
+      expect(remove.status).toBe(200);
+      const body = await remove.json();
+      expect(body.cart.discountCents).toBe(0);
+      expect(body.cart.coupon).toBeNull();
+    });
+
+    it("sets shipping address and computes shipping", async () => {
+      const { cookie } = await register("addr-user");
+      const { products } = await (await app.request("/products")).json();
+      await addItem(cookie, products[0].id, 1);
+
+      const res = await app.request("/cart/shipping-address", {
+        method: "PUT",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({
+          cep: "01310-100",
+          street: "Av. Paulista",
+          number: "1000",
+          city: "São Paulo",
+          state: "SP",
+        }),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.cart.shippingAddress?.cep).toBe("01310-100");
+      expect(body.cart.shippingCents).toBe(1500);
+    });
+
+    it("rejects invalid CEP with validation", async () => {
+      const { cookie } = await register("addr-bad");
+      const res = await app.request("/cart/shipping-address", {
+        method: "PUT",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({
+          cep: "abc",
+          street: "x",
+          number: "1",
+          city: "x",
+          state: "SP",
+        }),
+      });
+      expect(res.status).toBe(400);
+      await expect(res.json()).resolves.toEqual({ error: "validation" });
+    });
+
+    it("quotes shipping by CEP and subtotal", async () => {
+      const { cookie } = await register("ship-quote");
+      const res = await app.request(
+        "/shipping/quote?cep=01310-100&subtotalCents=7990",
+        { headers: { cookie } },
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.shippingCents).toBe(1500);
+    });
+
+    it("cleanup removes items older than TTL", async () => {
+      const { cookie } = await register("cleanup-user");
+      const { products } = await (await app.request("/products")).json();
+      await addItem(cookie, products[0].id, 1);
+
+      const { db } = await import("../src/db/client.js");
+      const { sql } = await import("drizzle-orm");
+      await db.execute(
+        sql`UPDATE cart_items SET added_at = NOW() - INTERVAL '10 days'`,
+      );
+
+      const cart = await app.request("/cart", { headers: { cookie } });
+      const body = await cart.json();
+      expect(body.cart.items).toHaveLength(0);
+      expect(body.cart.subtotalCents).toBe(0);
     });
   });
 });
