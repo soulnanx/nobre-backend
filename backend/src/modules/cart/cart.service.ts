@@ -129,23 +129,6 @@ export async function getCart(userId: string): Promise<Cart> {
   };
 }
 
-function computeShippingForCepStub(cep: string, subtotalCents: number): number {
-  const digits = cep.replace(/\D/g, "");
-  if (digits.length < 2) return 0;
-  const prefix = digits.slice(0, 2);
-  const table: Record<string, number> = {
-    "01": 1500,
-    "02": 1800,
-    "20": 1200,
-    "30": 2000,
-  };
-  if (table[prefix]) return table[prefix];
-  if (subtotalCents >= 20000) return 0;
-  return 2500;
-}
-
-void computeShippingForCepStub;
-
 export async function addItem(
   userId: string,
   productId: string,
